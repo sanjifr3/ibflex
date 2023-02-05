@@ -16,14 +16,38 @@ from typing import Tuple, Union, Optional, Any, Callable, Iterable
 
 from ibflex import Types, enums, utils
 
+import logging
+
+logging.basicConfig(
+    filename="ibflex.log",
+    filemode="a",
+    format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
+    datefmt="%H:%M:%S",
+    level=logging.DEBUG,
+)
+
+logging.info("ibkflex Parse STARTED")
+
+logger = logging.getLogger("ibflex")
+logger.setLevel(logging.DEBUG)
+
 
 class FlexParserError(Exception):
-    """ Error experienced while parsing Flex XML data. """
+    """Error experienced while parsing Flex XML data."""
 
 
 DataType = Union[
-    None, str, int, bool, decimal.Decimal, datetime.date, datetime.time,
-    datetime.datetime, enums.EnumType, Tuple[str, ...], Tuple[enums.Code, ...]
+    None,
+    str,
+    int,
+    bool,
+    decimal.Decimal,
+    datetime.date,
+    datetime.time,
+    datetime.datetime,
+    enums.EnumType,
+    Tuple[str, ...],
+    Tuple[enums.Code, ...],
 ]
 """Possible type annotations for class attributes of a FlexElement that is
 a data element (not a container).
@@ -56,7 +80,7 @@ def parse(source) -> Types.FlexQueryResponse:
 
 
 def parse_element(
-    elem: ET.Element
+    elem: ET.Element,
 ) -> Union[Types.FlexElement, Tuple[Types.FlexElement, ...]]:
     """Distinguish XML data element from container element; dispatch accordingly.
 
@@ -86,8 +110,7 @@ def parse_element(
 
 
 def parse_element_container(elem: ET.Element) -> Tuple[Types.FlexElement, ...]:
-    """Parse XML element container into FlexElement subclass instances.
-    """
+    """Parse XML element container into FlexElement subclass instances."""
     tag = elem.tag
 
     if tag == "FxPositions":
@@ -102,31 +125,54 @@ def parse_element_container(elem: ET.Element) -> Tuple[Types.FlexElement, ...]:
     return instances
 
 
-def parse_data_element(
-    elem: ET.Element
-) -> Types.FlexElement:
-    """Parse an XML data element into a Types.FlexElement subclass instance.
-    """
+def parse_data_element(elem: ET.Element) -> Types.FlexElement:
+    """Parse an XML data element into a Types.FlexElement subclass instance."""
     #  Look up XML element's matching FlexElement subclass in ibflex.Types.
     Class = getattr(Types, elem.tag)
 
+    ## sanjifr3
+
+    # Added
     #  Parse element attributes
-    try:
-        attrs = dict(
-            parse_element_attr(Class, k, v)
-            for k, v in elem.attrib.items()
-        )
-    except KeyError as exc:
-        msg = f"{Class.__name__} has no attribute " + str(exc)
-        raise FlexParserError(msg)
+    attrs = dict()
+    for k, v in elem.attrib.items():
+        try:
+            if k == "SLBCollaterals":
+                print(v)
+            k, v = parse_element_attr(Class, k, v)
+            if k == "SLBCollaterals":
+                print(v)
+            attrs[k] = v
+        except KeyError as exc:
+            msg = f"{Class.__name__} has no attribute " + str(exc)
+            logger.warning(msg)
+            continue
+    # \Added
+    # Removed
+    # try:
+    #     attrs = dict(parse_element_attr(Class, k, v) for k, v in elem.attrib.items())
+    # except KeyError as exc:
+    #     msg = f"{Class.__name__} has no attribute " + str(exc)
+    #     raise FlexParserError(msg)
+    # \Removed
 
     #  FlexQueryResponse & FlexStatement are the only data elements
     #  that contain other data elements.
+    old_attrs = attrs.copy()
     contained_elements = {child.tag: parse_element(child) for child in elem}
     if contained_elements:
         assert elem.tag in ("FlexQueryResponse", "FlexStatement")
         attrs.update(contained_elements)
 
+    ## sanjifr3
+
+    # Added
+    # for key in ["SLBCollaterals", "AssetSummary"]:
+    #     if key in attrs:
+    #         try:
+    #             return Class(**attrs)
+    #         except Exception as exc:
+    #             del attrs[key]
     try:
         return Class(**attrs)
     except Exception as exc:
@@ -155,6 +201,8 @@ def parse_element_attr(
     #  in parse_data_element(), instead accepting it as a function arg here.
     Type = Class.__annotations__[name]
 
+    # print(Type, Class.__annotations__[name])
+
     try:
         converted = ATTRIB_CONVERTERS[Type](value=value)
         return name, converted
@@ -171,28 +219,24 @@ def parse_element_attr(
 #  These are just implementation details for converters and don't need testing.
 ###############################################################################
 def prep_date(value: str) -> Tuple[int, int, int]:
-    """Returns a tuple of (year, month, day).
-    """
-    date_format = DATE_FORMATS[len(value)][value.count('/')]
+    """Returns a tuple of (year, month, day)."""
+    date_format = DATE_FORMATS[len(value)][value.count("/")]
     return datetime.datetime.strptime(value, date_format).timetuple()[:3]
 
 
 def prep_time(value: str) -> Tuple[int, int, int]:
-    """Returns a tuple of (hour, minute, second).
-    """
+    """Returns a tuple of (hour, minute, second)."""
     time_format = TIME_FORMATS[len(value)]
     return datetime.datetime.strptime(value, time_format).timetuple()[3:6]
 
 
 def prep_datetime(value: str) -> Tuple[int, ...]:
-    """Returns a tuple of (year, month, day, hour, minute, second).
-    """
+    """Returns a tuple of (year, month, day, hour, minute, second)."""
     #  HACK - some old data has ", " separator instead of ",".
     value = value.replace(", ", ",")
 
     def merge_date_time(datestr: str, timestr: str) -> Tuple[int, ...]:
-        """Convert presplit date/time strings into args ready for datetime().
-        """
+        """Convert presplit date/time strings into args ready for datetime()."""
         prepped_date = prep_date(datestr)
         assert prepped_date is not None
 
@@ -224,9 +268,7 @@ def prep_datetime(value: str) -> Tuple[int, ...]:
         #  index of date/time split. Shortest loop is to iterate over
         #  TIME_FORMATS (there's only 2 of them).
 
-        def testtimelength(
-            value: str, time_length: int
-        ) -> Optional[Tuple[int, ...]]:
+        def testtimelength(value: str, time_length: int) -> Optional[Tuple[int, ...]]:
             """Assuming time substring is of given length, try to process value
             into time tuple.
             """
@@ -276,11 +318,7 @@ def prep_code_sequence(value: str) -> Iterable[enums.Code]:
     Empty string input interpreted as null data; returns empty list.
     """
     sep = ";" if ";" in value else ","
-    return (
-        enums.Code(v)
-        for v in value.split(sep)
-        if v
-    ) if value != "" else []
+    return (enums.Code(v) for v in value.split(sep) if v) if value != "" else []
 
 
 ###############################################################################
@@ -298,6 +336,7 @@ def make_converter(
 
     Returns: a function that accepts string input and returns a Type instance.
     """
+
     def convert(value: str) -> DataType:
         try:
             prepped_value = prep(value)
@@ -311,15 +350,12 @@ def make_converter(
             else:
                 return Type(prepped_value)
         except Exception:
-            raise FlexParserError(
-                f"Can't convert {value!r} to {Type}"
-            )
+            raise FlexParserError(f"Can't convert {value!r} to {Type}")
 
     return convert
 
 
 def make_optional(func):
-
     def optional_convert(value):
         return None if value in ("", "-", "--", "N/A") else func(value)
 
@@ -331,10 +367,7 @@ convert_int = make_converter(int, prep=utils.identity_func)
 # IB sends "Y"/"N" for True/False
 convert_bool = make_converter(bool, prep=lambda x: {"Y": True, "N": False}[x])
 # IB sends numeric data with place delimiters (commas)
-convert_decimal = make_converter(
-    decimal.Decimal,
-    prep=lambda x: x.replace(",", "")
-)
+convert_decimal = make_converter(decimal.Decimal, prep=lambda x: x.replace(",", ""))
 convert_date = make_converter(datetime.date, prep=prep_date)
 convert_time = make_converter(datetime.time, prep=prep_time)
 convert_datetime = make_converter(datetime.datetime, prep=prep_datetime)
@@ -346,9 +379,6 @@ def convert_enum(Type, value):
     #  Work around old versions of values; convert to the new format
     if Type is enums.CashAction and value == "Deposits/Withdrawals":
         value = "Deposits & Withdrawals"
-    #  Work around for Orders with orderType like "LMT;MKT" -> "MULTIPLE"
-    if Type is enums.OrderType and ';' in value:
-        value = "MULTIPLE"
     elif Type is enums.TransferType and value == "ACAT":
         value = "ACATS"
 
@@ -359,31 +389,28 @@ def convert_enum(Type, value):
 
 
 ATTRIB_CONVERTERS = {
-    "str": convert_string,
-    "Optional[str]": convert_string,
-    "int": convert_int,
-    "Optional[int]": make_optional(convert_int),
-    "bool": convert_bool,
-    "Optional[bool]": make_optional(convert_bool),
-    "decimal.Decimal": convert_decimal,
-    "Optional[decimal.Decimal]": make_optional(convert_decimal),
-    "datetime.date": convert_date,
-    "Optional[datetime.date]": make_optional(convert_date),
-    "datetime.time": convert_time,
-    "Optional[datetime.time]": make_optional(convert_time),
-    "datetime.datetime": convert_datetime,
-    "Optional[datetime.datetime]": make_optional(convert_datetime),
-    "Tuple[str, ...]": convert_sequence,
-    "Tuple[enums.Code, ...]": convert_code_sequence,
+    str: convert_string,
+    Optional[str]: convert_string,
+    int: convert_int,
+    Optional[int]: make_optional(convert_int),
+    bool: convert_bool,
+    Optional[bool]: make_optional(convert_bool),
+    decimal.Decimal: convert_decimal,
+    Optional[decimal.Decimal]: make_optional(convert_decimal),
+    datetime.date: convert_date,
+    Optional[datetime.date]: make_optional(convert_date),
+    datetime.time: convert_time,
+    Optional[datetime.time]: make_optional(convert_time),
+    datetime.datetime: convert_datetime,
+    Optional[datetime.datetime]: make_optional(convert_datetime),
+    Tuple[str, ...]: convert_sequence,
+    Tuple[enums.Code, ...]: convert_code_sequence,
 }
 """Map of FlexElement attribute type hint to corresponding converter function.
 """
 
 ATTRIB_CONVERTERS.update(
-    {
-        f"Optional[enums.{Enum.__name__}]": functools.partial(convert_enum, Type=Enum)
-        for Enum in enums.ENUMS
-    }
+    {Optional[Enum]: functools.partial(convert_enum, Type=Enum) for Enum in enums.ENUMS}
 )
 """Map all Enum subclasses as Optional.
 """
@@ -393,9 +420,11 @@ ATTRIB_CONVERTERS.update(
 #  IB DATE FORMATS
 #  https://www.interactivebrokers.com/en/software/am/am/reports/activityflexqueries.htm
 ###############################################################################
-DATE_FORMATS = {8: {0: "%Y%m%d", 2: "%m/%d/%y"},
-                9: {0: "%d-%b-%y"},
-                10: {0: "%Y-%m-%d", 2: "%m/%d/%Y"}}
+DATE_FORMATS = {
+    8: {0: "%Y%m%d", 2: "%m/%d/%y"},
+    9: {0: "%d-%b-%y"},
+    10: {0: "%Y-%m-%d", 2: "%m/%d/%Y"},
+}
 """Keyed first by string length, then by "/" count within string.
 
 We can't distinguish in-band between US MM/dd/yyyy and Euro dd/MM/yyyy.
@@ -440,29 +469,190 @@ Additionally, some old values have 'T' as a date/time separator with TZ offset.
 #  CURRENCIES
 ###############################################################################
 ISO4217 = (
-    "AED", "AFN", "ALL", "AMD", "ANG", "AOA", "ARS", "AUD", "AWG", "AZN",
-    "BAM", "BBD", "BDT", "BGN", "BHD", "BIF", "BMD", "BND", "BOB", "BOV",
-    "BRL", "BSD", "BTN", "BWP", "BYR", "BZD", "CAD", "CDF", "CHE", "CHF",
-    "CHW", "CLF", "CLP", "CNY", "COP", "COU", "CRC", "CUC", "CUP", "CVE",
-    "CZK", "DJF", "DKK", "DOP", "DZD", "EEK", "EGP", "ERN", "ETB", "EUR",
-    "FJD", "FKP", "GBP", "GEL", "GHS", "GIP", "GMD", "GNF", "GTQ", "GYD",
-    "HKD", "HNL", "HRK", "HTG", "HUF", "IDR", "ILS", "INR", "IQD", "IRR",
-    "ISK", "JMD", "JOD", "JPY", "KES", "KGS", "KHR", "KMF", "KPW", "KRW",
-    "KWD", "KYD", "KZT", "LAK", "LBP", "LKR", "LRD", "LSL", "LTL", "LVL",
-    "LYD", "MAD", "MDL", "MGA", "MKD", "MMK", "MNT", "MOP", "MRO", "MUR",
-    "MVR", "MWK", "MXN", "MXV", "MYR", "MZN", "NAD", "NGN", "NIO", "NOK",
-    "NPR", "NZD", "OMR", "PAB", "PEN", "PGK", "PHP", "PKR", "PLN", "PYG",
-    "QAR", "RON", "RSD", "RUB", "RWF", "SAR", "SBD", "SCR", "SDG", "SEK",
-    "SGD", "SHP", "SLL", "SOS", "SRD", "STD", "SVC", "SYP", "SZL", "THB",
-    "TJS", "TMT", "TND", "TOP", "TRY", "TTD", "TWD", "TZS", "UAH", "UGX",
-    "USD", "USN", "USS", "UYI", "UYU", "UZS", "VEF", "VND", "VUV", "WST",
-    "XAF", "XAG", "XAU", "XBA", "XBB", "XBC", "XBD", "XCD", "XDR", "XOF",
-    "XPD", "XPF", "XPT", "XTS", "XXX", "YER", "ZAR", "ZMK", "ZWL",
+    "AED",
+    "AFN",
+    "ALL",
+    "AMD",
+    "ANG",
+    "AOA",
+    "ARS",
+    "AUD",
+    "AWG",
+    "AZN",
+    "BAM",
+    "BBD",
+    "BDT",
+    "BGN",
+    "BHD",
+    "BIF",
+    "BMD",
+    "BND",
+    "BOB",
+    "BOV",
+    "BRL",
+    "BSD",
+    "BTN",
+    "BWP",
+    "BYR",
+    "BZD",
+    "CAD",
+    "CDF",
+    "CHE",
+    "CHF",
+    "CHW",
+    "CLF",
+    "CLP",
+    "CNY",
+    "COP",
+    "COU",
+    "CRC",
+    "CUC",
+    "CUP",
+    "CVE",
+    "CZK",
+    "DJF",
+    "DKK",
+    "DOP",
+    "DZD",
+    "EEK",
+    "EGP",
+    "ERN",
+    "ETB",
+    "EUR",
+    "FJD",
+    "FKP",
+    "GBP",
+    "GEL",
+    "GHS",
+    "GIP",
+    "GMD",
+    "GNF",
+    "GTQ",
+    "GYD",
+    "HKD",
+    "HNL",
+    "HRK",
+    "HTG",
+    "HUF",
+    "IDR",
+    "ILS",
+    "INR",
+    "IQD",
+    "IRR",
+    "ISK",
+    "JMD",
+    "JOD",
+    "JPY",
+    "KES",
+    "KGS",
+    "KHR",
+    "KMF",
+    "KPW",
+    "KRW",
+    "KWD",
+    "KYD",
+    "KZT",
+    "LAK",
+    "LBP",
+    "LKR",
+    "LRD",
+    "LSL",
+    "LTL",
+    "LVL",
+    "LYD",
+    "MAD",
+    "MDL",
+    "MGA",
+    "MKD",
+    "MMK",
+    "MNT",
+    "MOP",
+    "MRO",
+    "MUR",
+    "MVR",
+    "MWK",
+    "MXN",
+    "MXV",
+    "MYR",
+    "MZN",
+    "NAD",
+    "NGN",
+    "NIO",
+    "NOK",
+    "NPR",
+    "NZD",
+    "OMR",
+    "PAB",
+    "PEN",
+    "PGK",
+    "PHP",
+    "PKR",
+    "PLN",
+    "PYG",
+    "QAR",
+    "RON",
+    "RSD",
+    "RUB",
+    "RWF",
+    "SAR",
+    "SBD",
+    "SCR",
+    "SDG",
+    "SEK",
+    "SGD",
+    "SHP",
+    "SLL",
+    "SOS",
+    "SRD",
+    "STD",
+    "SVC",
+    "SYP",
+    "SZL",
+    "THB",
+    "TJS",
+    "TMT",
+    "TND",
+    "TOP",
+    "TRY",
+    "TTD",
+    "TWD",
+    "TZS",
+    "UAH",
+    "UGX",
+    "USD",
+    "USN",
+    "USS",
+    "UYI",
+    "UYU",
+    "UZS",
+    "VEF",
+    "VND",
+    "VUV",
+    "WST",
+    "XAF",
+    "XAG",
+    "XAU",
+    "XBA",
+    "XBB",
+    "XBC",
+    "XBD",
+    "XCD",
+    "XDR",
+    "XOF",
+    "XPD",
+    "XPF",
+    "XPT",
+    "XTS",
+    "XXX",
+    "YER",
+    "ZAR",
+    "ZMK",
+    "ZWL",
 )
 CURRENCY_CODES = ISO4217 + (
-    "CNH",           # RMB traded in HK
+    "CNH",  # RMB traded in HK
     "BASE_SUMMARY",  # Fake currency code used in IB NAV/Performance reports
-    "",              # Lot element allows blank currency ?!
+    "",  # Lot element allows blank currency ?!
 )
 
 

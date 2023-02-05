@@ -73,4 +73,5 @@ setup(
             "flexget=ibflex.client:main [web]",
         ],
     },
+    install_requires=["pandas"],
 )

@@ -310,7 +310,7 @@ class IBKR:
                     "trans_id": trade.transactionID,
                     "dividend": Types.Decimal(0.0),
                     "action": "",
-                    "notes": trade.notes
+                    "notes": trade.description
                 }
             )
 

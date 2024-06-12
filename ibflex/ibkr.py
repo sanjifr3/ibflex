@@ -94,6 +94,7 @@ class IBKR:
         "fees",
         "dividend",
         "currency",
+        "notes"
     ]
 
     EXPECTED_CASH_TRANS_TYPES = set(
@@ -309,6 +310,7 @@ class IBKR:
                     "trans_id": trade.transactionID,
                     "dividend": Types.Decimal(0.0),
                     "action": "",
+                    "notes": trade.notes
                 }
             )
 
@@ -379,6 +381,7 @@ class IBKR:
                     "fees": Types.Decimal(0.0),
                     "action": "CORP",
                     "src_ticker": None,  # TODO: Extract source ticker for CORP Actions
+                    "notes": action.description,
                 }
             )
         corp_df = pd.DataFrame(corp_actions)
@@ -424,6 +427,7 @@ class IBKR:
                     "action": "TSFR",
                     "fees": Types.Decimal(0.0),
                     "dividend": Types.Decimal(0.0),
+                    "notes": tsfr.description,
                 }
             )
         tsfr_df = pd.DataFrame(transfers)
@@ -471,6 +475,7 @@ class IBKR:
                     "total": Types.Decimal(0.0),
                     "fees": Types.Decimal(0.0),
                     "dividend": Types.Decimal(0.0),
+                    "notes": trans.description,
                 }
             )
 

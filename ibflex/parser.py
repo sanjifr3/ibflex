@@ -317,8 +317,6 @@ def prep_code_sequence(value: str) -> Iterable[enums.Code]:
 
     Empty string input interpreted as null data; returns empty list.
     """
-    if value == 'AFx':
-        return []
     sep = ";" if ";" in value else ","
     return (enums.Code(v) for v in value.split(sep) if v) if value != "" else []
 

@@ -96,6 +96,7 @@ class Code(enum.Enum):
     REDEMPTION = "RED"  # Redemption to Investor
     REVERSE = "Re"  # Interest or Dividend Accrual Reversal
     REIMBURSEMENT = "Ri"  # Reimbursement
+    RECURINGINVESTMENT = "RI" # Recuring Investment
     SOLICITEDIB = "SI"  # This order was solicited by Interactive Brokers
     SPECIFICLOT = "SL"  # Specific Lot tax lot-matching method
     SOLICITEDOTHER = (

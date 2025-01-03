@@ -7,6 +7,7 @@ Flex report configuration needed by this module:
     Date format: choose yyyy-MM-dd
     Trades: uncheck "Symbol Summary", "Asset Class", "Orders"
 """
+
 import datetime
 import decimal
 import functools

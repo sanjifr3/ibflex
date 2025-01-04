@@ -7,29 +7,29 @@ Flex report configuration needed by this module:
     Date format: choose yyyy-MM-dd
     Trades: uncheck "Symbol Summary", "Asset Class", "Orders"
 """
-import xml.etree.ElementTree as ET
+
 import datetime
 import decimal
-import itertools
 import functools
-from typing import Tuple, Union, Optional, Any, Callable, Iterable
+import itertools
+import logging
+import xml.etree.ElementTree as ET
+from typing import Any, Callable, Iterable, Optional, Tuple, Union
 
 from ibflex import Types, enums, utils
-
-import logging
 
 logging.basicConfig(
     filename="ibflex.log",
     filemode="a",
     format="%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s",
     datefmt="%H:%M:%S",
-    level=logging.DEBUG,
+    level=logging.WARNING,
 )
 
 logging.info("ibkflex Parse STARTED")
 
 logger = logging.getLogger("ibflex")
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.WARNING)
 
 
 class FlexParserError(Exception):
@@ -94,7 +94,7 @@ def parse_element(
         try:
             count = int(elem.get("count", ""))
             assert len(elem) == count
-        except (ValueError):
+        except ValueError:
             msg = f"Malformed FlexStatements.count={elem.get('count', '')}"
             raise FlexParserError(msg)
         except AssertionError:

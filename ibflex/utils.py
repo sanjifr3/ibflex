@@ -1,5 +1,6 @@
 # coding: utf-8
-""" Utility functions for ibflex """
+"""Utility functions for ibflex"""
+
 import itertools
 
 

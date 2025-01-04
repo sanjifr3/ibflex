@@ -98,9 +98,9 @@ __all__ = [
 
 import datetime
 import decimal
-from decimal import Decimal
 from dataclasses import dataclass
-from typing import Tuple, Optional
+from decimal import Decimal
+from typing import Optional, Tuple
 
 from ibflex import enums
 

@@ -1,12 +1,17 @@
-from dataclasses import dataclass
-import pandas as pd
-from typing import Optional, List, Tuple
-from ibflex import client, parser, Types
 import datetime as dt
+from dataclasses import dataclass
+from typing import List, Optional, Tuple
+
+import pandas as pd
+
+from ibflex import AssetClass, Types, client, parser
 
 
 def get_data(
-    token: int, query_id: int, parse: bool = True, account_id_mapper: Optional[dict] = None
+    token: int,
+    query_id: int,
+    parse: bool = True,
+    account_id_mapper: Optional[dict] = None,
 ) -> list:
     """Get the data from IBKR Flex"""
     resp = client.download(token, query_id)
@@ -94,7 +99,7 @@ class IBKR:
         "fees",
         "dividend",
         "currency",
-        "notes"
+        "notes",
     ]
 
     EXPECTED_CASH_TRANS_TYPES = set(
@@ -109,8 +114,9 @@ class IBKR:
         ]
     )
 
-    def __init__(self, data: Types.FlexStatement, account_id_mapper: Optional[dict] = None) -> None:
-
+    def __init__(
+        self, data: Types.FlexStatement, account_id_mapper: Optional[dict] = None
+    ) -> None:
         # Parse + preprocess
         if account_id_mapper is None:
             account_id_mapper = {}
@@ -126,8 +132,10 @@ class IBKR:
         self.summ = self._parse_cash_report(data.CashReport)
         self.trades_df, self.fx_df = self._parse_trades(data.Trades)
         self.corp_df = self._parse_corp_actions(data.CorporateActions)
-        self.tsfr_df = self._parse_transfers(data.Transfers)  # TODO
-        self.cash_trans_df = self._parse_cash_transactions(data.CashTransactions)  # TODO
+        self.tsfr_df = self._parse_transfers(data.Transfers)
+        self.cash_trans_df = self._parse_cash_transactions(
+            data.CashTransactions
+        )  # TODO
 
         # Create transactions dataframe
         self.trans_df = self._create_trans_df()
@@ -146,7 +154,13 @@ class IBKR:
     def _create_trans_df(self):
         """Create the transactions dataframe."""
         trans_df = pd.concat(
-            [self.trades_df, self.fx_df, self.corp_df, self.cash_trans_df, self.tsfr_df],
+            [
+                self.trades_df,
+                self.fx_df,
+                self.corp_df,
+                self.cash_trans_df,
+                self.tsfr_df,
+            ],
             axis=0,
             ignore_index=True,
         )
@@ -154,7 +168,9 @@ class IBKR:
         if len(trans_df) == 0:
             return pd.DataFrame(columns=self.TRANS_COLS)
 
-        trans_df.loc[:, "datetime"] = trans_df.loc[:, "date"].apply(lambda x: x.to_pydatetime())
+        trans_df.loc[:, "datetime"] = trans_df.loc[:, "date"].apply(
+            lambda x: x.to_pydatetime()
+        )
         trans_df.loc[:, "site"] = self.account_id
         trans_df.loc[trans_df["ticker"] == "MX", "src_ticker"] = "MX.TO"  # Fix for MX
         return trans_df.sort_values(
@@ -207,7 +223,9 @@ class IBKR:
 
         return positions
 
-    def _parse_cash_report(self, cash_reports: List[Types.CashReportCurrency]) -> dict[str, dict]:
+    def _parse_cash_report(
+        self, cash_reports: List[Types.CashReportCurrency]
+    ) -> dict[str, dict]:
         """Get cash report info"""
 
         # Parse cash reports
@@ -263,7 +281,9 @@ class IBKR:
 
         return summ
 
-    def _parse_trades(self, trade_data: List[Types.Trade]) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def _parse_trades(
+        self, trade_data: List[Types.Trade]
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """Get trade info"""
 
         if len(trade_data) == 0:
@@ -279,7 +299,9 @@ class IBKR:
             trades.append(
                 {
                     "date": trade.dateTime,
-                    "trans_type": (trade.transactionType.name if trade.transactionType else None),
+                    "trans_type": (
+                        trade.transactionType.name if trade.transactionType else None
+                    ),
                     "buy_sell": (trade.buySell.name if trade.buySell else None),
                     "ticker": clean_symbol(trade.symbol, trade.currency),
                     "qty": trade.quantity,
@@ -290,10 +312,14 @@ class IBKR:
                     "cost_price": trade.closePrice,
                     "proceeds": trade.proceeds,
                     "open_close": (
-                        trade.openCloseIndicator.name if trade.openCloseIndicator else None
+                        trade.openCloseIndicator.name
+                        if trade.openCloseIndicator
+                        else None
                     ),
                     "order_type": (trade.orderType.name if trade.orderType else None),
-                    "asset_category": (trade.assetCategory.name if trade.assetCategory else None),
+                    "asset_category": (
+                        trade.assetCategory.name if trade.assetCategory else None
+                    ),
                     "exchange": trade.exchange,
                     "name": trade.description,
                     "net_cash": trade.netCash,
@@ -310,7 +336,7 @@ class IBKR:
                     "trans_id": trade.transactionID,
                     "dividend": Types.Decimal(0.0),
                     "action": "",
-                    "notes": trade.description
+                    "notes": trade.description,
                 }
             )
 
@@ -339,7 +365,11 @@ class IBKR:
 
         ## Create usd_fx_df
         usd_fx_df = fx_df.copy()
-        usd_fx_df.loc[:, ["ticker", "fees", "currency"]] = ("USD.FXT", Types.Decimal(0.0), "USD")
+        usd_fx_df.loc[:, ["ticker", "fees", "currency"]] = (
+            "USD.FXT",
+            Types.Decimal(0.0),
+            "USD",
+        )
         usd_fx_df.loc[usd_fx_df["buy_sell"] == "BUY", "total"] = -usd_fx_df.loc[
             usd_fx_df["buy_sell"] == "BUY", "qty"
         ]
@@ -369,7 +399,9 @@ class IBKR:
                     "qty": action.quantity,
                     "proceeds": action.proceeds,
                     "value": action.value,
-                    "asset_category": (action.assetCategory.name if action.assetCategory else None),
+                    "asset_category": (
+                        action.assetCategory.name if action.assetCategory else None
+                    ),
                     "currency": action.currency,
                     "description": action.description,
                     "exchange": action.listingExchange,
@@ -394,7 +426,9 @@ class IBKR:
 
         # Preprocessing
         corp_df.loc[corp_df["type"].str.endswith("SPLIT"), "action"] = "SPLIT"
-        corp_df.loc[:, "ticker"] = corp_df["ticker"].apply(lambda x: x.replace("-OLD", ""))
+        corp_df.loc[:, "ticker"] = corp_df["ticker"].apply(
+            lambda x: x.replace("-OLD", "")
+        )
         corp_df.loc[:, "total"] = -corp_df["proceeds"]
 
         return corp_df
@@ -413,13 +447,17 @@ class IBKR:
                     "date": pd.to_datetime(tsfr.date),
                     "type": (tsfr.type.name if tsfr.type else None),
                     "direction": (tsfr.direction.name if tsfr.direction else None),
-                    "ticker": clean_symbol(tsfr.symbol, tsfr.currency),
+                    "ticker": clean_symbol(tsfr.symbol, tsfr.currency)
+                    if tsfr.assetCategory != AssetClass.CASH
+                    else tsfr.currency,
                     "qty": tsfr.quantity,
                     "total": -tsfr.cashTransfer,
                     "transferPrice": tsfr.transferPrice,
                     "positionAmount": tsfr.positionAmount,
                     "currency": tsfr.currency,
-                    "asset_category": (tsfr.assetCategory.name if tsfr.assetCategory else None),
+                    "asset_category": (
+                        tsfr.assetCategory.name if tsfr.assetCategory else None
+                    ),
                     "exchange": tsfr.listingExchange,
                     "from": tsfr.account,
                     "report_date": tsfr.reportDate,
@@ -435,7 +473,10 @@ class IBKR:
         tsfr_df.loc[tsfr_df["type"] == "ACATS", "ticker"] = (
             tsfr_df.loc[tsfr_df["type"] == "ACATS", "currency"] + ".FXT"
         )
-        tsfr_df.loc[tsfr_df["type"] == "ATON", "total"] = Types.Decimal(0.0)
+
+        tsfr_df.loc[
+            (tsfr_df["type"] == "ATON") & (~tsfr_df["ticker"].isin(["CAD", "USD"]))
+        ] = Types.Decimal(0.0)
 
         # Validate counts
         if len(transfer_data) != len(tsfr_df):
@@ -468,7 +509,9 @@ class IBKR:
                     "description": trans.description,
                     "report_date": trans.reportDate,
                     "settle_date": trans.settleDate,
-                    "asset_category": (trans.assetCategory.name if trans.assetCategory else None),
+                    "asset_category": (
+                        trans.assetCategory.name if trans.assetCategory else None
+                    ),
                     "exchange": trans.listingExchange,
                     "action": "",
                     "qty": Types.Decimal(0.0),
@@ -506,7 +549,6 @@ class IBKR:
         for i, (date, amt) in cash_trans_df.loc[
             cash_trans_df["type"] == "CANCELLED", ["date", "amount"]
         ].iterrows():
-
             # Set first match to cancelled
             index = cash_trans_df.loc[
                 (cash_trans_df["date"] == date) & (cash_trans_df["amount"] == -amt)
@@ -519,15 +561,17 @@ class IBKR:
 
         # Withdrawals / Deposits
         cash_trans_df.loc[cash_trans_df["type"] == "DEPOSITWITHDRAW", "ticker"] = "CAD"
-        cash_trans_df.loc[cash_trans_df["type"] == "DEPOSITWITHDRAW", "total"] = -cash_trans_df.loc[
-            cash_trans_df["type"] == "DEPOSITWITHDRAW", "amount"
-        ]
+        cash_trans_df.loc[
+            cash_trans_df["type"] == "DEPOSITWITHDRAW", "total"
+        ] = -cash_trans_df.loc[cash_trans_df["type"] == "DEPOSITWITHDRAW", "amount"]
 
         # Dividends / Broker Interest Received / Payment in Lieu of Dividends
         cash_trans_df.loc[
-            cash_trans_df["type"].isin(["DIVIDEND", "BROKERINTRCVD", "PAYMENTINLIEU"]), "dividend"
+            cash_trans_df["type"].isin(["DIVIDEND", "BROKERINTRCVD", "PAYMENTINLIEU"]),
+            "dividend",
         ] = cash_trans_df.loc[
-            cash_trans_df["type"].isin(["DIVIDEND", "BROKERINTRCVD", "PAYMENTINLIEU"]), "amount"
+            cash_trans_df["type"].isin(["DIVIDEND", "BROKERINTRCVD", "PAYMENTINLIEU"]),
+            "amount",
         ]
 
         # Withholding Tax / Fees / Broker Interest Paid
@@ -538,12 +582,17 @@ class IBKR:
         ]
 
         # Fix ticker name -- payments = {currency}.FEES, rewards = {currency}.RWRD
-        cash_trans_df.loc[cash_trans_df["type"].isin(["FEES", "BROKERINTPAID"]), "ticker"] = (
-            cash_trans_df.loc[cash_trans_df["type"].isin(["FEES", "BROKERINTPAID"]), "currency"]
+        cash_trans_df.loc[
+            cash_trans_df["type"].isin(["FEES", "BROKERINTPAID"]), "ticker"
+        ] = (
+            cash_trans_df.loc[
+                cash_trans_df["type"].isin(["FEES", "BROKERINTPAID"]), "currency"
+            ]
             + ".FEES"
         )
         cash_trans_df.loc[cash_trans_df["type"] == "BROKERINTRCVD", "ticker"] = (
-            cash_trans_df.loc[cash_trans_df["type"] == "BROKERINTRCVD", "currency"] + ".RWRD"
+            cash_trans_df.loc[cash_trans_df["type"] == "BROKERINTRCVD", "currency"]
+            + ".RWRD"
         )
 
         # Check counts
@@ -558,8 +607,10 @@ class IBKR:
         """Validate if sums match cash summary"""
 
         for curr in ["CAD", "USD"]:
-
-            if curr not in self.summ and len(self.trans_df[self.trans_df["currency"] == curr]) > 0:
+            if (
+                curr not in self.summ
+                and len(self.trans_df[self.trans_df["currency"] == curr]) > 0
+            ):
                 raise ParseError(f"Missing {curr} cash summary")
             elif curr not in self.summ:
                 # No curr transactions, skip
@@ -567,7 +618,8 @@ class IBKR:
 
             # Commissions
             tot_comm = -self.trans_df.loc[
-                self.trans_df["type"].isin(["BUY", "SELL"]) & (self.trans_df["currency"] == curr),
+                self.trans_df["type"].isin(["BUY", "SELL"])
+                & (self.trans_df["currency"] == curr),
                 "fees",
             ].sum()
 
@@ -604,7 +656,8 @@ class IBKR:
 
             # Dividends
             tot_div = self.trans_df.loc[
-                (self.trans_df["type"] == "DIVIDEND") & (self.trans_df["currency"] == curr),
+                (self.trans_df["type"] == "DIVIDEND")
+                & (self.trans_df["currency"] == curr),
                 "dividend",
             ].sum()
 
@@ -638,7 +691,9 @@ class IBKR:
 
             # Withholding Tax
             tot_whtax = -self.trans_df.loc[
-                (self.trans_df["type"] == "WHTAX") & (self.trans_df["currency"] == curr), "fees"
+                (self.trans_df["type"] == "WHTAX")
+                & (self.trans_df["currency"] == curr),
+                "fees",
             ].sum()
 
             if abs(tot_whtax - self.summ[curr]["whtax"]) > self.TOL:
@@ -667,7 +722,8 @@ class IBKR:
 
             # Fees
             tot_fees = -self.trans_df.loc[
-                (self.trans_df["type"] == "FEES") & (self.trans_df["currency"] == curr), "fees"
+                (self.trans_df["type"] == "FEES") & (self.trans_df["currency"] == curr),
+                "fees",
             ].sum()
 
             if abs(tot_fees - self.summ[curr]["fees"]) > self.TOL:
@@ -677,7 +733,8 @@ class IBKR:
 
             # In lieu of dividends
             tot_inlieu = self.trans_df.loc[
-                (self.trans_df["type"] == "PAYMENTINLIEU") & (self.trans_df["currency"] == curr),
+                (self.trans_df["type"] == "PAYMENTINLIEU")
+                & (self.trans_df["currency"] == curr),
                 "dividend",
             ].sum()
 

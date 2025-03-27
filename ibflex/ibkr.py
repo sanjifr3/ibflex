@@ -581,7 +581,7 @@ class IBKR:
             cash_trans_df["type"].isin(["WHTAX", "FEES", "BROKERINTPAID"]), "amount"
         ]
 
-        # Fix ticker name -- payments = {currency}.FEES, rewards = {currency}.RWRD
+        # Fix ticker name -- payments = {currency}.FEES, rewards = {currency}.INT
         cash_trans_df.loc[
             cash_trans_df["type"].isin(["FEES", "BROKERINTPAID"]), "ticker"
         ] = (
@@ -592,7 +592,7 @@ class IBKR:
         )
         cash_trans_df.loc[cash_trans_df["type"] == "BROKERINTRCVD", "ticker"] = (
             cash_trans_df.loc[cash_trans_df["type"] == "BROKERINTRCVD", "currency"]
-            + ".RWRD"
+            + ".INT"
         )
 
         # Check counts

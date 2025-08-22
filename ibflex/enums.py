@@ -106,7 +106,8 @@ class Code(enum.Enum):
     STOCKYIELD = "SY"  # Positions that may be eligible for Stock Yield.
     TRANSFER = "T"  # Transfer
     FPP = "FP;P"
-    FP = "FP"
+    FOREIGNTAXPAID = "FP"  # Foreign Tax Paid
+    LOANFEE = "LF"  # Loan Fee
 
 
 @enum.unique

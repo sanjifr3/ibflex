@@ -19,7 +19,7 @@ import requests
 ###############################################################################
 # SERVICE LOCATIONS
 ###############################################################################
-FLEX_URL = "https://gdcdyn.interactivebrokers.com/Universal/servlet/"
+FLEX_URL = "https://api.ibkr.com/Universal/servlet/"
 REQUEST_URL = FLEX_URL + "FlexStatementService.SendRequest"
 STMT_URL = FLEX_URL + "FlexStatementService.GetStatement"
 

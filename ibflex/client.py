@@ -158,7 +158,7 @@ def submit_request(url: str, token: str, query: str) -> requests.Response:
 
     Retry with a progressive timeout window.
     """
-    MAX_REQUESTS = 3
+    MAX_REQUESTS = 5
     TIMEOUT_INCREMENT = 5
 
     response = None

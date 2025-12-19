@@ -176,7 +176,16 @@ def submit_request(url: str, token: str, query: str) -> requests.Response:
                 raise
             else:
                 print("Request Timeout, re-sending...")
+                time.sleep(1)
                 req_count += 1
+        except requests.exceptions.ConnectionError:
+            if req_count >= MAX_REQUESTS:
+                raise
+            else:
+                print("Request Timeout, re-sending...")
+                time.sleep(1)
+                req_count += 1
+                
 
     return response
 
